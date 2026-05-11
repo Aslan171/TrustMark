@@ -13,6 +13,10 @@ from app.config import settings
 from app.database.models import Status, StatusType, User
 from app.utils.formatters import format_date, format_money, profile_link, risk_for_status
 
+FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
+REGULAR_FONT = FONT_DIR / "NotoSans-Regular.ttf"
+BOLD_FONT = FONT_DIR / "NotoSans-Bold.ttf"
+
 
 @dataclass(slots=True)
 class CardPalette:
@@ -42,6 +46,7 @@ AVATAR_GRADIENTS: tuple[tuple[tuple[int, int, int], tuple[int, int, int]], ...] 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
+        str(BOLD_FONT if bold else REGULAR_FONT),
         "C:/Windows/Fonts/segoeuib.ttf" if bold else "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
