@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.models import Evidence, HistoryLog, User, UsernameHistory
 from app.keyboards.user_keyboards import check_result_keyboard
 from app.services import check_service, user_service
-from app.services.card_service import generate_user_card
+from app.services.card_service import generate_unknown_card, generate_user_card
 from app.states.check_states import CheckStates
 from app.utils.formatters import format_check_card_text, format_date, status_label
 from app.utils.validators import ParsedTarget, parse_check_command, parse_forwarded_user, parse_target_text
@@ -77,15 +77,17 @@ async def send_check_result(
         result.not_found_target,
     )
 
-    if result.user:
-        try:
+    try:
+        if result.user:
             card = await generate_user_card(bot, result.user, result.status)
-            await message.answer_photo(
-                BufferedInputFile(card, filename="trustmark_card.png"),
-                caption="TrustMark проверка пользователя",
-            )
-        except Exception:
-            logger.exception("Failed to generate TrustMark card")
+        else:
+            card = generate_unknown_card(result.not_found_target or target.display)
+        await message.answer_photo(
+            BufferedInputFile(card, filename="trustmark_card.png"),
+            caption="TrustMark проверка пользователя",
+        )
+    except Exception:
+        logger.exception("Failed to generate TrustMark card")
 
     await message.answer(
         text,
