@@ -17,25 +17,26 @@ from app.utils.formatters import format_date, format_money, profile_link, risk_f
 @dataclass(slots=True)
 class CardPalette:
     bg: tuple[int, int, int] = (5, 8, 14)
-    surface: tuple[int, int, int] = (16, 22, 34)
-    surface_2: tuple[int, int, int] = (26, 35, 52)
-    surface_3: tuple[int, int, int] = (35, 46, 66)
+    base: tuple[int, int, int] = (20, 27, 40)
+    panel: tuple[int, int, int] = (30, 40, 59)
+    panel_dark: tuple[int, int, int] = (11, 16, 26)
     text: tuple[int, int, int] = (255, 255, 255)
-    muted: tuple[int, int, int] = (194, 207, 226)
-    subtle: tuple[int, int, int] = (121, 137, 159)
-    green: tuple[int, int, int] = (24, 232, 182)
-    blue: tuple[int, int, int] = (79, 196, 255)
-    orange: tuple[int, int, int] = (255, 183, 69)
-    red: tuple[int, int, int] = (255, 74, 92)
+    muted: tuple[int, int, int] = (207, 219, 238)
+    subtle: tuple[int, int, int] = (137, 153, 176)
+    green: tuple[int, int, int] = (26, 234, 185)
+    blue: tuple[int, int, int] = (76, 201, 255)
+    orange: tuple[int, int, int] = (255, 184, 64)
+    red: tuple[int, int, int] = (255, 76, 95)
+    white_chip: tuple[int, int, int] = (232, 239, 249)
 
 
 AVATAR_GRADIENTS: tuple[tuple[tuple[int, int, int], tuple[int, int, int]], ...] = (
-    ((45, 156, 255), (41, 222, 190)),
-    ((255, 169, 53), (255, 92, 64)),
-    ((151, 106, 255), (68, 198, 255)),
-    ((38, 210, 136), (13, 167, 158)),
-    ((255, 96, 170), (112, 95, 255)),
-    ((255, 203, 70), (255, 126, 76)),
+    ((40, 158, 255), (38, 224, 190)),
+    ((255, 170, 54), (255, 88, 68)),
+    ((151, 104, 255), (67, 196, 255)),
+    ((36, 210, 135), (12, 169, 158)),
+    ((255, 92, 174), (114, 96, 255)),
+    ((255, 205, 72), (255, 127, 72)),
 )
 
 
@@ -54,10 +55,9 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
         if Path(candidate).exists():
             return ImageFont.truetype(candidate, size=size)
 
-    # Last attempt: Pillow can sometimes resolve bundled/system fonts by name.
-    for name in ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf", "Arial.ttf"):
+    for font_name in ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf", "Arial.ttf"):
         try:
-            return ImageFont.truetype(name, size=size)
+            return ImageFont.truetype(font_name, size=size)
         except OSError:
             continue
     return ImageFont.load_default()
@@ -68,6 +68,11 @@ def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont)
     return bbox[2] - bbox[0]
 
 
+def _text_height(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> int:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[3] - bbox[1]
+
+
 def _fit_font(
     draw: ImageDraw.ImageDraw,
     text: str,
@@ -75,7 +80,7 @@ def _fit_font(
     size: int,
     *,
     bold: bool = False,
-    min_size: int = 24,
+    min_size: int = 28,
 ) -> ImageFont.ImageFont:
     current = size
     while current >= min_size:
@@ -116,12 +121,13 @@ def _gradient_avatar(label: str | None, size: int, palette: CardPalette) -> Imag
 
     avatar.putalpha(_circle_mask(size))
     draw = ImageDraw.Draw(avatar)
-    draw.ellipse((6, 6, size - 7, size - 7), outline=(255, 255, 255, 170), width=5)
+    draw.ellipse((7, 7, size - 8, size - 8), outline=(255, 255, 255, 170), width=6)
+
     text = _initials(label)
-    font = _font(size // 3, bold=True)
+    font = _font(max(72, size // 3), bold=True)
     bbox = draw.textbbox((0, 0), text, font=font)
     draw.text(
-        ((size - (bbox[2] - bbox[0])) / 2, (size - (bbox[3] - bbox[1])) / 2 - 6),
+        ((size - (bbox[2] - bbox[0])) / 2, (size - (bbox[3] - bbox[1])) / 2 - 8),
         text,
         font=font,
         fill=palette.text,
@@ -152,7 +158,7 @@ def _status_color(status_type: StatusType, palette: CardPalette) -> tuple[int, i
     return {
         StatusType.guarantor: palette.green,
         StatusType.trusted_user: palette.blue,
-        StatusType.unknown: (229, 236, 246),
+        StatusType.unknown: palette.white_chip,
         StatusType.suspicious: palette.orange,
         StatusType.scammer: palette.red,
     }[status_type]
@@ -164,25 +170,15 @@ def _status_title(status_type: StatusType) -> str:
         StatusType.trusted_user: "TRUSTED USER",
         StatusType.unknown: "NOT IN DATABASE",
         StatusType.suspicious: "SUSPICIOUS",
-        StatusType.scammer: "CONFIRMED SCAMMER",
+        StatusType.scammer: "SCAMMER",
     }[status_type]
 
 
-def _draw_pill(
-    draw: ImageDraw.ImageDraw,
-    xy: tuple[int, int],
-    text: str,
-    fill: tuple[int, int, int],
-    palette: CardPalette,
-) -> None:
-    x, y = xy
-    font = _font(26, bold=True)
-    width = _text_width(draw, text, font) + 42
-    draw.rounded_rectangle((x, y, x + width, y + 48), radius=24, fill=fill)
-    draw.text((x + 21, y + 9), text, font=font, fill=palette.bg)
+def _draw_label(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, palette: CardPalette) -> None:
+    draw.text(xy, text, font=_font(28, bold=True), fill=palette.subtle)
 
 
-def _draw_panel(
+def _draw_value_panel(
     draw: ImageDraw.ImageDraw,
     box: tuple[int, int, int, int],
     label: str,
@@ -190,14 +186,36 @@ def _draw_panel(
     *,
     palette: CardPalette,
     color: tuple[int, int, int] | None = None,
-    value_size: int = 58,
-    label_size: int = 25,
+    value_size: int = 48,
 ) -> None:
     x1, y1, x2, y2 = box
-    draw.rounded_rectangle(box, radius=26, fill=palette.surface)
-    draw.text((x1 + 32, y1 + 24), label, font=_font(label_size, bold=True), fill=palette.subtle)
-    font = _fit_font(draw, value, x2 - x1 - 64, value_size, bold=True, min_size=30)
-    draw.text((x1 + 32, y1 + 66), value, font=font, fill=color or palette.text)
+    draw.rounded_rectangle(box, radius=28, fill=palette.panel_dark)
+    _draw_label(draw, (x1 + 30, y1 + 22), label, palette)
+    font = _fit_font(draw, value, x2 - x1 - 60, value_size, bold=True, min_size=30)
+    draw.text((x1 + 30, y1 + 64), value, font=font, fill=color or palette.text)
+
+
+def _centered_text(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    font: ImageFont.ImageFont,
+    fill: tuple[int, int, int],
+) -> None:
+    x1, y1, x2, y2 = box
+    draw.text(
+        (
+            x1 + (x2 - x1 - _text_width(draw, text, font)) / 2,
+            y1 + (y2 - y1 - _text_height(draw, text, font)) / 2 - 4,
+        ),
+        text,
+        font=font,
+        fill=fill,
+    )
+
+
+def _id_line(telegram_id: str) -> str:
+    return f"Telegram ID: {telegram_id}" if telegram_id.isdigit() else "ID unavailable"
 
 
 def _render_card(
@@ -213,66 +231,67 @@ def _render_card(
     palette = CardPalette()
     accent = _status_color(status_type, palette)
     risk = risk_for_status(status_type)
-    width, height = 1200, 720
+    width = height = 1080
 
     image = Image.new("RGB", (width, height), palette.bg)
     draw = ImageDraw.Draw(image)
 
-    draw.rounded_rectangle((28, 28, width - 28, height - 28), radius=34, fill=palette.surface_2)
-    draw.rounded_rectangle((54, 54, width - 54, 276), radius=30, fill=palette.surface_3)
-    draw.rectangle((28, 72, 42, height - 72), fill=accent)
+    draw.rounded_rectangle((36, 36, 1044, 1044), radius=44, fill=palette.base)
+    draw.rectangle((36, 94, 54, 986), fill=accent)
 
-    draw.text((78, 76), "TRUSTMARK", font=_font(32, bold=True), fill=accent)
-    draw.text((916, 83), f"@{settings.bot_owner_username}", font=_font(26, bold=True), fill=palette.muted)
+    draw.text((84, 72), "TRUSTMARK", font=_font(54, bold=True), fill=accent)
+    owner = f"@{settings.bot_owner_username}"
+    owner_font = _font(30, bold=True)
+    draw.text((996 - _text_width(draw, owner, owner_font), 88), owner, font=owner_font, fill=palette.muted)
 
-    image.paste(avatar, (82, 126), avatar)
-    title_font = _fit_font(draw, title, 560, 62, bold=True, min_size=38)
-    draw.text((294, 124), title, font=title_font, fill=palette.text)
-    draw.text((298, 194), f"Telegram ID: {telegram_id}", font=_font(34, bold=True), fill=palette.muted)
-    draw.text((298, 236), link, font=_fit_font(draw, link, 570, 26, bold=True), fill=accent)
-    _draw_pill(draw, (905, 190), "CHECK CARD", accent, palette)
+    draw.rounded_rectangle((84, 142, 996, 402), radius=38, fill=palette.panel)
+    image.paste(avatar, (116, 166), avatar)
 
-    _draw_panel(
+    title_font = _fit_font(draw, title, 590, 76, bold=True, min_size=42)
+    draw.text((390, 164), title, font=title_font, fill=palette.text)
+    draw.text((394, 254), _id_line(telegram_id), font=_font(42, bold=True), fill=palette.muted)
+    draw.text((394, 312), link, font=_fit_font(draw, link, 560, 34, bold=True), fill=accent)
+
+    chip_box = (756, 74, 996, 128)
+    draw.rounded_rectangle(chip_box, radius=27, fill=palette.white_chip)
+    chip_font = _font(27, bold=True)
+    _centered_text(draw, chip_box, "CHECK CARD", chip_font, palette.bg)
+
+    status_box = (84, 448, 996, 620)
+    draw.rounded_rectangle(status_box, radius=34, fill=palette.panel_dark, outline=accent, width=5)
+    _draw_label(draw, (122, 476), "STATUS", palette)
+    status = _status_title(status_type)
+    status_font = _fit_font(draw, status, 836, 78, bold=True, min_size=44)
+    draw.text((122, 520), status, font=status_font, fill=accent)
+
+    risk_box = (84, 664, 520, 850)
+    draw.rounded_rectangle(risk_box, radius=34, fill=palette.panel_dark)
+    _draw_label(draw, (122, 696), "DEAL RISK", palette)
+    risk_text = f"{risk}%"
+    risk_font = _font(118, bold=True)
+    draw.text((122, 726), risk_text, font=risk_font, fill=accent)
+
+    _draw_value_panel(
         draw,
-        (72, 326, 696, 488),
-        "STATUS",
-        _status_title(status_type),
-        palette=palette,
-        color=accent,
-        value_size=54,
-    )
-    _draw_panel(
-        draw,
-        (736, 326, 1128, 488),
-        "DEAL RISK",
-        f"{risk}%",
-        palette=palette,
-        color=accent,
-        value_size=88,
-    )
-    _draw_panel(
-        draw,
-        (72, 528, 552, 632),
+        (560, 664, 996, 778),
         "COVERAGE LIMIT",
         coverage,
         palette=palette,
         value_size=38,
     )
-    _draw_panel(
+    _draw_value_panel(
         draw,
-        (592, 528, 1128, 632),
+        (560, 808, 996, 922),
         "CHECK DATE",
         checked_at,
         palette=palette,
         value_size=38,
     )
 
-    draw.text(
-        (76, 666),
-        "Username can change. Telegram ID is the main identifier.",
-        font=_font(28, bold=True),
-        fill=palette.orange,
-    )
+    warning = "Username can change. Telegram ID is the main identifier."
+    warning_font = _fit_font(draw, warning, 900, 34, bold=True, min_size=26)
+    draw.text((84, 958), warning, font=warning_font, fill=palette.orange)
+    draw.text((84, 1000), "TrustMark reputation check", font=_font(28, bold=True), fill=palette.subtle)
 
     output = BytesIO()
     image.save(output, format="PNG", optimize=True)
@@ -282,7 +301,7 @@ def _render_card(
 async def generate_user_card(bot: Bot, user: User, status: Status | None) -> bytes:
     palette = CardPalette()
     status_type = status.status_type if status else StatusType.unknown
-    avatar_size = 150
+    avatar_size = 220
     avatar = await _load_avatar(bot, user, avatar_size)
     if avatar is None:
         avatar = _gradient_avatar(user.username or user.first_name or str(user.telegram_user_id), avatar_size, palette)
@@ -291,9 +310,10 @@ async def generate_user_card(bot: Bot, user: User, status: Status | None) -> byt
     if status and status.coverage_limit_amount is not None:
         coverage = f"up to {format_money(status.coverage_limit_amount, status.coverage_currency)}"
 
+    telegram_id = str(user.telegram_user_id) if user.telegram_user_id else "ID unavailable"
     return _render_card(
         title=user.display_name,
-        telegram_id=str(user.telegram_user_id or "unknown"),
+        telegram_id=telegram_id,
         link=profile_link(user) or settings.bot_owner_link,
         avatar=avatar,
         status_type=status_type,
@@ -306,14 +326,13 @@ def generate_unknown_card(target: str | None) -> bytes:
     palette = CardPalette()
     title = target or "Unknown user"
     link = f"https://t.me/{title[1:]}" if title.startswith("@") and len(title) > 1 else settings.bot_owner_link
-    avatar = _gradient_avatar(title, 150, palette)
+    avatar = _gradient_avatar(title, 220, palette)
     return _render_card(
         title=title,
-        telegram_id="unavailable",
+        telegram_id="ID unavailable",
         link=link,
         avatar=avatar,
         status_type=StatusType.unknown,
         coverage="no limit",
         checked_at=format_date(datetime.now(UTC)),
     )
-
