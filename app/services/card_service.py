@@ -20,10 +20,10 @@ BOLD_FONT = FONT_DIR / "NotoSans-Bold.ttf"
 
 @dataclass(slots=True)
 class CardPalette:
-    bg: tuple[int, int, int] = (5, 8, 14)
-    base: tuple[int, int, int] = (20, 27, 40)
-    panel: tuple[int, int, int] = (30, 40, 59)
-    panel_dark: tuple[int, int, int] = (11, 16, 26)
+    bg: tuple[int, int, int] = (4, 7, 13)
+    base: tuple[int, int, int] = (18, 25, 38)
+    panel: tuple[int, int, int] = (29, 39, 59)
+    panel_dark: tuple[int, int, int] = (10, 15, 25)
     text: tuple[int, int, int] = (255, 255, 255)
     muted: tuple[int, int, int] = (207, 219, 238)
     subtle: tuple[int, int, int] = (137, 153, 176)
@@ -32,6 +32,7 @@ class CardPalette:
     orange: tuple[int, int, int] = (255, 184, 64)
     red: tuple[int, int, int] = (255, 76, 95)
     white_chip: tuple[int, int, int] = (232, 239, 249)
+    line: tuple[int, int, int] = (47, 60, 82)
 
 
 AVATAR_GRADIENTS: tuple[tuple[tuple[int, int, int], tuple[int, int, int]], ...] = (
@@ -180,7 +181,7 @@ def _status_title(status_type: StatusType) -> str:
 
 
 def _draw_label(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, palette: CardPalette) -> None:
-    draw.text(xy, text, font=_font(28, bold=True), fill=palette.subtle)
+    draw.text(xy, text, font=_font(25, bold=True), fill=palette.subtle)
 
 
 def _draw_value_panel(
@@ -194,10 +195,10 @@ def _draw_value_panel(
     value_size: int = 48,
 ) -> None:
     x1, y1, x2, y2 = box
-    draw.rounded_rectangle(box, radius=28, fill=palette.panel_dark)
-    _draw_label(draw, (x1 + 30, y1 + 22), label, palette)
+    draw.rounded_rectangle(box, radius=28, fill=palette.panel_dark, outline=palette.line, width=2)
+    _draw_label(draw, (x1 + 30, y1 + 20), label, palette)
     font = _fit_font(draw, value, x2 - x1 - 60, value_size, bold=True, min_size=30)
-    draw.text((x1 + 30, y1 + 64), value, font=font, fill=color or palette.text)
+    draw.text((x1 + 30, y1 + 62), value, font=font, fill=color or palette.text)
 
 
 def _centered_text(
@@ -223,6 +224,22 @@ def _id_line(telegram_id: str) -> str:
     return f"Telegram ID: {telegram_id}" if telegram_id.isdigit() else "ID unavailable"
 
 
+def _blend(
+    color_a: tuple[int, int, int],
+    color_b: tuple[int, int, int],
+    ratio: float,
+) -> tuple[int, int, int]:
+    return tuple(int(color_a[i] * (1 - ratio) + color_b[i] * ratio) for i in range(3))
+
+
+def _draw_background_texture(draw: ImageDraw.ImageDraw, palette: CardPalette, accent: tuple[int, int, int]) -> None:
+    for offset in range(-640, 1080, 86):
+        color = _blend(palette.base, accent, 0.08)
+        draw.line((offset, 1044, offset + 640, 36), fill=color, width=1)
+    for y in (142, 448, 664, 922):
+        draw.line((84, y - 22, 996, y - 22), fill=_blend(palette.line, accent, 0.12), width=1)
+
+
 def _render_card(
     *,
     title: str,
@@ -242,61 +259,63 @@ def _render_card(
     draw = ImageDraw.Draw(image)
 
     draw.rounded_rectangle((36, 36, 1044, 1044), radius=44, fill=palette.base)
+    _draw_background_texture(draw, palette, accent)
     draw.rectangle((36, 94, 54, 986), fill=accent)
+    draw.line((64, 74, 1010, 74), fill=_blend(palette.line, accent, 0.22), width=2)
 
-    draw.text((84, 72), "TRUSTMARK", font=_font(54, bold=True), fill=accent)
+    draw.text((84, 76), "TRUSTMARK", font=_font(48, bold=True), fill=accent)
     owner = f"@{settings.bot_owner_username}"
-    owner_font = _font(30, bold=True)
-    draw.text((996 - _text_width(draw, owner, owner_font), 88), owner, font=owner_font, fill=palette.muted)
+    owner_font = _font(27, bold=True)
+    draw.text((996 - _text_width(draw, owner, owner_font), 90), owner, font=owner_font, fill=palette.muted)
 
-    draw.rounded_rectangle((84, 142, 996, 402), radius=38, fill=palette.panel)
+    draw.rounded_rectangle((84, 144, 996, 394), radius=38, fill=palette.panel, outline=palette.line, width=2)
     image.paste(avatar, (116, 166), avatar)
 
-    title_font = _fit_font(draw, title, 590, 76, bold=True, min_size=42)
-    draw.text((390, 164), title, font=title_font, fill=palette.text)
-    draw.text((394, 254), _id_line(telegram_id), font=_font(42, bold=True), fill=palette.muted)
-    draw.text((394, 312), link, font=_fit_font(draw, link, 560, 34, bold=True), fill=accent)
+    title_font = _fit_font(draw, title, 590, 66, bold=True, min_size=40)
+    draw.text((390, 166), title, font=title_font, fill=palette.text)
+    draw.text((394, 250), _id_line(telegram_id), font=_font(38, bold=True), fill=palette.muted)
+    draw.text((394, 306), link, font=_fit_font(draw, link, 560, 31, bold=True), fill=accent)
 
     chip_box = (756, 74, 996, 128)
     draw.rounded_rectangle(chip_box, radius=27, fill=palette.white_chip)
     chip_font = _font(27, bold=True)
     _centered_text(draw, chip_box, "CHECK CARD", chip_font, palette.bg)
 
-    status_box = (84, 448, 996, 620)
+    status_box = (84, 442, 996, 610)
     draw.rounded_rectangle(status_box, radius=34, fill=palette.panel_dark, outline=accent, width=5)
-    _draw_label(draw, (122, 476), "STATUS", palette)
+    _draw_label(draw, (122, 470), "STATUS", palette)
     status = _status_title(status_type)
-    status_font = _fit_font(draw, status, 836, 78, bold=True, min_size=44)
-    draw.text((122, 520), status, font=status_font, fill=accent)
+    status_font = _fit_font(draw, status, 836, 68, bold=True, min_size=42)
+    draw.text((122, 514), status, font=status_font, fill=accent)
 
-    risk_box = (84, 664, 520, 850)
-    draw.rounded_rectangle(risk_box, radius=34, fill=palette.panel_dark)
-    _draw_label(draw, (122, 696), "DEAL RISK", palette)
+    risk_box = (84, 652, 520, 844)
+    draw.rounded_rectangle(risk_box, radius=34, fill=palette.panel_dark, outline=palette.line, width=2)
+    _draw_label(draw, (122, 684), "DEAL RISK", palette)
     risk_text = f"{risk}%"
-    risk_font = _font(118, bold=True)
-    draw.text((122, 726), risk_text, font=risk_font, fill=accent)
+    risk_font = _font(106, bold=True)
+    draw.text((122, 718), risk_text, font=risk_font, fill=accent)
 
     _draw_value_panel(
         draw,
-        (560, 664, 996, 778),
+        (560, 652, 996, 770),
         "COVERAGE LIMIT",
         coverage,
         palette=palette,
-        value_size=38,
+        value_size=36,
     )
     _draw_value_panel(
         draw,
-        (560, 808, 996, 922),
+        (560, 802, 996, 920),
         "CHECK DATE",
         checked_at,
         palette=palette,
-        value_size=38,
+        value_size=36,
     )
 
     warning = "Username can change. Telegram ID is the main identifier."
-    warning_font = _fit_font(draw, warning, 900, 34, bold=True, min_size=26)
+    warning_font = _fit_font(draw, warning, 900, 31, bold=True, min_size=24)
     draw.text((84, 958), warning, font=warning_font, fill=palette.orange)
-    draw.text((84, 1000), "TrustMark reputation check", font=_font(28, bold=True), fill=palette.subtle)
+    draw.text((84, 1000), "TrustMark reputation check", font=_font(25, bold=True), fill=palette.subtle)
 
     output = BytesIO()
     image.save(output, format="PNG", optimize=True)
