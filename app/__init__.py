@@ -1,0 +1,2 @@
+"""TrustMark bot package."""
+
