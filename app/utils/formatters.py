@@ -68,8 +68,26 @@ def format_evidence_links(evidence: list[Evidence]) -> str:
         title = item.title or item.file_type or "Материал"
         links.append(f'{index}. <a href="{escape(url)}">{escape(title)}</a>')
     if not links:
-        return "Доказательства не опубликованы."
+        return "Материалы пока не опубликованы."
     return "\n".join(links)
+
+
+def _profile_link_html(user: User, link: str | None) -> str:
+    if link and user.username:
+        return f'<a href="{escape(link)}">{escape(user.display_name)}</a>'
+    return escape(user.display_name)
+
+
+def _coverage_text(status: Status | None) -> str:
+    if status and status.coverage_limit_amount is not None:
+        return f"до {escape(format_money(status.coverage_limit_amount, status.coverage_currency))}"
+    return "нет лимита покрытия"
+
+
+def _reason_text(status: Status | None) -> str:
+    if status and status.reason:
+        return escape(status.reason)
+    return "не указана"
 
 
 def format_check_card_text(
@@ -83,45 +101,46 @@ def format_check_card_text(
     if user is None:
         target = escape(not_found_target or "пользователь")
         return (
-            "⚪ <b>Пользователь не найден в базе.</b>\n\n"
-            f"Запрос: <code>{target}</code>\n\n"
-            "Данных недостаточно для оценки риска.\n\n"
-            "Рекомендуется:\n"
-            "• проводить сделки через гаранта\n"
-            "• не переводить крупные суммы без проверки\n\n"
+            "🛡️ <b>TrustMark Check</b>\n"
+            "━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Запрос:</b> <code>{target}</code>\n"
+            "🆔 <b>ID:</b> недоступен\n"
+            "⚪ <b>Статус:</b> не найден в базе\n"
+            "📊 <b>Риск сделки:</b> 50%\n\n"
+            "📌 <b>Рекомендации</b>\n"
+            "• проводите сделку через гаранта\n"
+            "• не переводите крупные суммы без проверки\n"
+            "• попросите пользователя написать боту или проверить через reply\n\n"
             "⚠️ Username может быть изменён. Основная проверка идёт по Telegram ID."
         )
 
     current_status = status.status_type if status else StatusType.unknown
     link = profile_link(user)
     groups = ", ".join(escape(group) for group in known_groups or []) or "нет данных"
-    coverage_line = ""
-    if status and status.coverage_limit_amount is not None:
-        coverage_line = (
-            "\n\n<b>Лимит покрытия:</b>\n"
-            f"до {escape(format_money(status.coverage_limit_amount, status.coverage_currency))}"
-        )
-    reason_line = ""
-    if status and status.reason:
-        reason_line = f"\n\n<b>Причина:</b>\n{escape(status.reason)}"
-    issued_line = ""
-    if status and status.issued_at:
-        issued_line = f"\n\n<b>Дата выдачи:</b>\n{format_date(status.issued_at)}"
+    issued_at = format_date(status.issued_at if status else None)
+    status_text = status_label(current_status)
+    risk = risk_for_status(current_status)
 
     return (
-        f"👤 <b>Пользователь:</b> {escape(user.display_name)}\n"
+        "🛡️ <b>TrustMark Check</b>\n"
+        "━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>{_profile_link_html(user, link)}</b>\n"
         f"🆔 <b>ID:</b> <code>{user.telegram_user_id or 'неизвестен'}</code>\n"
-        f"🔗 <b>Ссылка:</b> {escape(link) if link else 'нет данных'}\n"
-        f"💬 <b>Известные группы:</b> {groups}\n\n"
-        f"<b>Статус:</b> {status_label(current_status)}\n"
-        f"<b>Риск сделки:</b> {risk_for_status(current_status)}%"
-        f"{coverage_line}"
-        f"{issued_line}"
-        f"{reason_line}\n\n"
-        f"<b>Доказательства:</b>\n{format_evidence_links(evidence)}\n\n"
-        f"📜 История статусов: {history_count} записей\n\n"
-        "⚠️ Username может быть изменён. Основная проверка идёт по Telegram ID.\n"
-        "⚠️ Администрация ручается только в рамках лимита покрытия.\n\n"
-        f"Создатель TrustMark: @{escape(settings.bot_owner_username)}"
+        f"🔗 <b>Профиль:</b> {escape(link) if link else 'нет данных'}\n"
+        f"💬 <b>Группы:</b> {groups}\n\n"
+        "📌 <b>Репутация</b>\n"
+        f"├ Статус: <b>{status_text}</b>\n"
+        f"├ Риск сделки: <b>{risk}%</b>\n"
+        f"├ Лимит: <b>{_coverage_text(status)}</b>\n"
+        f"└ Дата выдачи: <b>{issued_at}</b>\n\n"
+        "📝 <b>Основание</b>\n"
+        f"{_reason_text(status)}\n\n"
+        "📁 <b>Доказательства</b>\n"
+        f"{format_evidence_links(evidence)}\n\n"
+        f"📜 <b>История:</b> {history_count} записей\n\n"
+        "⚠️ <b>Важно</b>\n"
+        "Username может быть изменён. Основная проверка идёт по Telegram ID.\n"
+        "Администрация ручается только в рамках лимита покрытия.\n\n"
+        f"👑 Создатель TrustMark: @{escape(settings.bot_owner_username)}"
     )
 
