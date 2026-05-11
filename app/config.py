@@ -33,6 +33,14 @@ def _parse_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _normalize_database_url(value: str) -> str:
+    if value.startswith("postgresql://"):
+        return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if value.startswith("postgres://"):
+        return value.replace("postgres://", "postgresql+asyncpg://", 1)
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     bot_token: str
@@ -80,12 +88,14 @@ def load_settings() -> Settings:
     else:
         evidence_channel_id = None
 
+    database_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://trustmark:trustmark@localhost:5432/trustmark",
+    )
+
     return Settings(
         bot_token=os.getenv("BOT_TOKEN", ""),
-        database_url=os.getenv(
-            "DATABASE_URL",
-            "postgresql+asyncpg://trustmark:trustmark@localhost:5432/trustmark",
-        ),
+        database_url=_normalize_database_url(database_url),
         admin_ids=_parse_int_list(os.getenv("ADMIN_IDS")),
         admin_chat_id=_parse_optional_int(os.getenv("ADMIN_CHAT_ID")),
         evidence_channel_id=evidence_channel_id,
@@ -99,4 +109,3 @@ def load_settings() -> Settings:
 
 
 settings = load_settings()
-
